@@ -114,6 +114,23 @@ def extract_school(filename):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# 로딩 상태용 헬퍼: 업로드된 파일을 읽고 표준화까지 마친 DataFrame 반환
+# ═══════════════════════════════════════════════════════════════════════════
+def load_env_df(file):
+    if file is None:
+        return None
+    with st.spinner("환경 데이터를 읽는 중..."):
+        return std_cols(read_csv(file))
+
+
+def load_growth_df(file):
+    if file is None:
+        return None
+    with st.spinner("생육 데이터를 읽는 중..."):
+        return std_cols(read_csv(file))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # 사이드바
 # ═══════════════════════════════════════════════════════════════════════════
 st.sidebar.title("📁 데이터 업로드")
@@ -172,18 +189,20 @@ with tabs[0]:
 
         with col_obj:
             st.subheader("데이터 요약")
+
+            # 생육 데이터 요약
             if growth_file is not None:
-                growth_df = std_cols(read_csv(growth_file))
+                g_df = load_growth_df(growth_file)
                 n_ind = (
-                    len(growth_df.drop_duplicates(subset=["개체번호"]))
-                    if "개체번호" in growth_df.columns else len(growth_df)
+                    len(g_df.drop_duplicates(subset=["개체번호"]))
+                    if "개체번호" in g_df.columns else len(g_df)
                 )
                 st.write(f"**총 개체 수**: {n_ind}개체")
-                if "time" not in growth_df.columns:
+                if "time" not in g_df.columns:
                     st.write("**측정 기간**: 생육 결과 기준 (환경 데이터 참고)")
                 else:
-                    tmin = growth_df["time"].min()
-                    tmax = growth_df["time"].max()
+                    tmin = g_df["time"].min()
+                    tmax = g_df["time"].max()
                     if pd.notna(tmin) and pd.notna(tmax):
                         st.write(
                             f"**측정 기간**: {tmin.strftime('%Y-%m-%d')} ~ {tmax.strftime('%Y-%m-%d')}"
@@ -191,7 +210,7 @@ with tabs[0]:
                 avail_items = [
                     c for c in ["잎 수", "지상부 길이", "지하부 길이",
                                 "생중량", "지상부 질량", "지하부 질량"]
-                    if c in growth_df.columns
+                    if c in g_df.columns
                 ]
                 st.write(
                     f"**측정 항목**: {', '.join(avail_items) if avail_items else '없음'}"
@@ -199,16 +218,17 @@ with tabs[0]:
             else:
                 st.info("📎 생육 결과 CSV를 업로드하면 여기에 요약이 표시됩니다.")
 
+            # 환경 데이터 요약
             if env_file is not None:
-                env_df = std_cols(read_csv(env_file))
-                if "time" in env_df.columns and env_df["time"].notna().any():
-                    tmin_e = env_df["time"].min()
-                    tmax_e = env_df["time"].max()
+                e_df = load_env_df(env_file)
+                if "time" in e_df.columns and e_df["time"].notna().any():
+                    tmin_e = e_df["time"].min()
+                    tmax_e = e_df["time"].max()
                     if pd.notna(tmin_e) and pd.notna(tmax_e):
                         st.write(
                             f"**환경 측정 기간**: {tmin_e.strftime('%Y-%m-%d')} ~ {tmax_e.strftime('%Y-%m-%d')}"
                         )
-                cols_env = [c for c in ["temperature", "humidity", "ph", "ec"] if c in env_df.columns]
+                cols_env = [c for c in ["temperature", "humidity", "ph", "ec"] if c in e_df.columns]
                 st.write(
                     f"**환경 측정 항목**: {', '.join(cols_env) if cols_env else '없음'}"
                 )
@@ -219,39 +239,55 @@ with tabs[0]:
         st.subheader("주요 지표")
         m1, m2, m3, m4 = st.columns(4)
 
-        if growth_file is not None and len(growth_df) > 0:
-            n_ind = (
-                len(growth_df.drop_duplicates(subset=["개체번호"]))
-                if "개체번호" in growth_df.columns else len(growth_df)
-            )
-            m1.metric("총 개체수", f"{n_ind}개체")
+        if growth_file is not None:
+            g_df = load_growth_df(growth_file)
+            if len(g_df) > 0:
+                n_ind = (
+                    len(g_df.drop_duplicates(subset=["개체번호"]))
+                    if "개체번호" in g_df.columns else len(g_df)
+                )
+                m1.metric("총 개체수", f"{n_ind}개체")
+            else:
+                m1.metric("총 개체수", "—")
         else:
             m1.metric("총 개체수", "—")
 
-        if env_file is not None and "temperature" in env_df.columns:
-            tc = env_df["temperature"].dropna()
-            if len(tc) >= 2:
-                m2.metric("평균 온도", f"{tc.mean():.1f}℃")
+        if env_file is not None:
+            e_df = load_env_df(env_file)
+            if "temperature" in e_df.columns:
+                tc = e_df["temperature"].dropna()
+                if len(tc) >= 2:
+                    m2.metric("평균 온도", f"{tc.mean():.1f}℃")
+                else:
+                    m2.metric("평균 온도", "데이터 부족")
             else:
-                m2.metric("평균 온도", "데이터 부족")
+                m2.metric("평균 온도", "—")
         else:
             m2.metric("평균 온도", "—")
 
-        if env_file is not None and "humidity" in env_df.columns:
-            hc = env_df["humidity"].dropna()
-            if len(hc) >= 2:
-                m3.metric("평균 습도", f"{hc.mean():.1f}%")
+        if env_file is not None:
+            e_df = load_env_df(env_file)
+            if "humidity" in e_df.columns:
+                hc = e_df["humidity"].dropna()
+                if len(hc) >= 2:
+                    m3.metric("평균 습도", f"{hc.mean():.1f}%")
+                else:
+                    m3.metric("평균 습도", "데이터 부족")
             else:
-                m3.metric("평균 습도", "데이터 부족")
+                m3.metric("평균 습도", "—")
         else:
             m3.metric("평균 습도", "—")
 
-        if growth_file is not None and "생중량" in growth_df.columns:
-            gwc = growth_df["생중량"].dropna()
-            if len(gwc) >= 2:
-                m4.metric("평균 생중량", f"{gwc.mean():.2f}g")
+        if growth_file is not None:
+            g_df = load_growth_df(growth_file)
+            if "생중량" in g_df.columns:
+                gwc = g_df["생중량"].dropna()
+                if len(gwc) >= 2:
+                    m4.metric("평균 생중량", f"{gwc.mean():.2f}g")
+                else:
+                    m4.metric("평균 생중량", "데이터 부족")
             else:
-                m4.metric("평균 생중량", "데이터 부족")
+                m4.metric("평균 생중량", "—")
         else:
             m4.metric("평균 생중량", "—")
 
@@ -269,9 +305,8 @@ with tabs[1]:
                 "🌡️ 환경 데이터 CSV를 사이드바에서 업로드하면 이 탭의 내용이 표시됩니다."
             )
         else:
-            env_df = std_cols(read_csv(env_file))
+            env_df = load_env_df(env_file)
 
-            # 환경 요약 표
             st.subheader("환경 요약 (평균 · 최소 · 최대 · CV)")
             env_cols = [c for c in ["temperature", "humidity", "ph", "ec"] if c in env_df.columns]
             if env_cols:
@@ -486,11 +521,10 @@ with tabs[2]:
                 "📊 생육 결과 CSV를 사이드바에서 업로드하면 이 탭의 내용이 표시됩니다."
             )
         else:
-            growth_df = std_cols(read_csv(growth_file))
+            growth_df = load_growth_df(growth_file)
 
             st.header("📊 생육 결과 분석")
 
-            # ── 🥇 핵심 결과 카드 ──────────────────────────────────────────
             if "생중량" in growth_df.columns:
                 gwc = growth_df["생중량"].dropna()
                 if len(gwc) >= 2:
@@ -525,7 +559,6 @@ with tabs[2]:
 """
                     )
 
-            # ── 개체별 생육 비교 (막대 그래프) ─────────────────────────────
             st.divider()
             st.subheader("개체별 생육 비교 (막대 그래프)")
 
@@ -611,7 +644,6 @@ with tabs[2]:
                     "생육 데이터에서 막대 그래프로 표시할 측정 항목(생중량·잎 수·지상부 길이·지하부 길이)을 찾을 수 없습니다."
                 )
 
-            # ── 생중량 분포 (박스플롯) ──────────────────────────────────────
             st.divider()
             st.subheader("생중량 분포 (박스플롯)")
             if "생중량" in growth_df.columns:
@@ -662,7 +694,7 @@ with tabs[3]:
         if growth_file is None:
             st.info("🔬 생육 결과 CSV를 업로드하면 가설 검증 탭의 내용이 표시됩니다.")
         else:
-            growth_df = std_cols(read_csv(growth_file))
+            growth_df = load_growth_df(growth_file)
 
             st.header("🔬 가설 검증 — 지상부 vs 지하부 길이")
 
@@ -683,7 +715,6 @@ with tabs[3]:
                     r = np.corrcoef(x_vals, y_vals)[0, 1]
                     slope, intercept = np.polyfit(x_vals, y_vals, 1)
 
-                    # ── 핵심 결과 카드 ──────────────────────────────────────
                     st.subheader("🥇 핵심 결과 카드")
                     k1, k2, k3, k4 = st.columns(4)
                     k1.metric("지상부 평균 길이", f"{x_vals.mean():.1f}mm")
@@ -710,7 +741,7 @@ with tabs[3]:
 """
                     )
 
-                    # ── 개체별 지상부-지하부 그룹 막대 그래프 (하나의 그래프, 나란히) ──
+                    # ── 개체별 지상부-지하부 그룹 막대 그래프 ──────────────
                     st.divider()
                     st.subheader("개체별 지상부·지하부 길이 (grouped bar — 한 그래프에 나란히)")
 
@@ -852,6 +883,88 @@ with tabs[3]:
 
                     st.plotly_chart(fig_sc, width="stretch")
 
+                    # ── 지상부-지하부 길이 상관관계 히트맵 ─────────────────
+                    st.divider()
+                    st.subheader("지상부·지하부 길이 상관관계 히트맵")
+
+                    heat_df = df_ab[[above_col, below_col]].copy()
+                    heat_df.columns = ["지상부 길이", "지하부 길이"]
+                    corr_matrix = heat_df.corr()
+
+                    z_values = corr_matrix.values
+                    x_labels_h = list(corr_matrix.columns)
+                    y_labels_h = list(corr_matrix.index)
+
+                    fig_heat = go.Figure()
+
+                    colorscale = [
+                        [0.0, "#0d47a1"],
+                        [0.5, "#ffffff"],
+                        [1.0, "#b71c1c"],
+                    ]
+
+                    fig_heat.add_trace(
+                        go.Heatmap(
+                            z=z_values,
+                            x=x_labels_h,
+                            y=y_labels_h,
+                            colorscale=colorscale,
+                            zmin=-1.0,
+                            zmax=1.0,
+                            text=np.round(z_values, 4),
+                            texttemplate="%{text:.4f}",
+                            textfont=dict(
+                                size=18,
+                                color="#222222",
+                                family="Malgun Gothic, Apple SD Gothic Neo, sans-serif",
+                            ),
+                            hoverongaps=False,
+                            hovertemplate=(
+                                "%{y} vs %{x}<br>상관계수 r = %{z:.4f}<extra></extra>"
+                            ),
+                            colorbar=dict(
+                                title="상관계수 r",
+                                titlefont=dict(
+                                    family="Malgun Gothic, Apple SD Gothic Neo, sans-serif"
+                                ),
+                            ),
+                        )
+                    )
+
+                    fig_heat.update_layout(
+                        height=430,
+                        font=dict(family="Malgun Gothic, Apple SD Gothic Neo, sans-serif"),
+                        xaxis_title="비교 변수",
+                        yaxis_title="비교 변수",
+                        xaxis=dict(side="top"),
+                        yaxis=dict(
+                            autorange="reversed",
+                            tickfont=dict(
+                                family="Malgun Gothic, Apple SD Gothic Neo, sans-serif"
+                            ),
+                        ),
+                        xaxis_tickfont=dict(
+                            family="Malgun Gothic, Apple SD Gothic Neo, sans-serif"
+                        ),
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        margin=dict(l=60, r=80, t=30, b=60),
+                    )
+
+                    st.plotly_chart(fig_heat, width="stretch")
+
+                    st.info(
+                        f"""
+**히트맵 해석**
+
+- **대각선(1.0000)**: 같은 변수끼리의 상관관계는 항상 1 (자기 자신과 완전히 같음)
+- **비대각선 r = {r:.4f}**: 지상부 길이와 지하부 길이 사이의 상관계수
+  - 0에 가까움 → 두 길이 사이에 뚜렷한 선형 관계가 **없음**
+  - 색깔도 흰색에 가까움 → 상관이 약함을 시각적으로 확인 가능
+- 색이 **파랑**에 가까우면 음의 상관, **빨강**에 가까우면 양의 상관을 의미합니다.
+"""
+                    )
+
                     # ── 가설 검증 결과 분석 설명 ─────────────────────────────
                     st.divider()
                     st.subheader("📝 가설 검증 결과 분석")
@@ -879,10 +992,11 @@ with tabs[3]:
 
 **분석 설명**
 
-산점도와 추세선을 바탕으로 볼 때, 지상부 길이와 지하부 길이 사이의 선형 관계는 **{corr_desc}** 수준입니다.
+산점도, 추세선, 히트맵을 종합하여 볼 때, 지상부 길이와 지하부 길이 사이의 선형 관계는 **{corr_desc}** 수준입니다.
 
 - 상관계수가 0에 가까우므로, 지상부 길이가 길다고 해서 지하부 길이도 반드시 길다고 단정하기 어렵습니다.
 - 일부 개체는 지상부는 짧지만 지하부가 매우 길고, 반대의 패턴을 보이는 개체도 있어 **개체별로 지상부·지하부 생장 전략이 다를 가능성**이 있습니다.
+- 히트맵에서 비대각선 색이 흰색에 가까운 것은 두 변수 간 상관이 약함을 시각적으로 보여줍니다.
 - 원형 그래프에서 보듯, 평균적으로 지상부와 지하부 길이는 {ratio_val:.3f} : 1 비율로 나타나며, 이는 지상부가 지하부보다 {((ratio_val - 1) * 100):.1f}% {'김' if ratio_val > 1 else '짧음'}을 의미합니다.
 
 > **참고**: 상관계수는 선형 관계만 나타내므로, 실제 관계는 곡선 형태일 수도 있습니다. 또한 표본이 81개체로 제한되어 있어 이 결과를 일반화하려면 더 많은 데이터가 필요합니다.
