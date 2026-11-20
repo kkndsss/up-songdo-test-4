@@ -114,7 +114,7 @@ def extract_school(filename):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 로딩 상태용 헬퍼: 업로드된 파일을 읽고 표준화까지 마친 DataFrame 반환
+# 로딩 헬퍼
 # ═══════════════════════════════════════════════════════════════════════════
 def load_env_df(file):
     if file is None:
@@ -141,7 +141,9 @@ growth_file = st.sidebar.file_uploader("생육 결과 데이터 CSV", type="csv"
 growth_items = st.sidebar.multiselect(
     "생육 측정 항목 선택 (기본 모두 선택)",
     ["잎 수", "지상부 길이", "지하부 길이", "생중량", "지상부 질량", "지하부 질량"],
-    default=["잎 수", "지상부 길이", "지하부 길이", "생중량", "지상부 질량", "지하부 질량"],
+    default=[
+        "잎 수", "지상부 길이", "지하부 길이", "생중량", "지상부 질량", "지하부 질량"
+    ],
 )
 
 school_name = extract_school(
@@ -189,8 +191,6 @@ with tabs[0]:
 
         with col_obj:
             st.subheader("데이터 요약")
-
-            # 생육 데이터 요약
             if growth_file is not None:
                 g_df = load_growth_df(growth_file)
                 n_ind = (
@@ -208,8 +208,10 @@ with tabs[0]:
                             f"**측정 기간**: {tmin.strftime('%Y-%m-%d')} ~ {tmax.strftime('%Y-%m-%d')}"
                         )
                 avail_items = [
-                    c for c in ["잎 수", "지상부 길이", "지하부 길이",
-                                "생중량", "지상부 질량", "지하부 질량"]
+                    c for c in [
+                        "잎 수", "지상부 길이", "지하부 길이",
+                        "생중량", "지상부 질량", "지하부 질량",
+                    ]
                     if c in g_df.columns
                 ]
                 st.write(
@@ -218,7 +220,6 @@ with tabs[0]:
             else:
                 st.info("📎 생육 결과 CSV를 업로드하면 여기에 요약이 표시됩니다.")
 
-            # 환경 데이터 요약
             if env_file is not None:
                 e_df = load_env_df(env_file)
                 if "time" in e_df.columns and e_df["time"].notna().any():
@@ -228,7 +229,10 @@ with tabs[0]:
                         st.write(
                             f"**환경 측정 기간**: {tmin_e.strftime('%Y-%m-%d')} ~ {tmax_e.strftime('%Y-%m-%d')}"
                         )
-                cols_env = [c for c in ["temperature", "humidity", "ph", "ec"] if c in e_df.columns]
+                cols_env = [
+                    c for c in ["temperature", "humidity", "ph", "ec"]
+                    if c in e_df.columns
+                ]
                 st.write(
                     f"**환경 측정 항목**: {', '.join(cols_env) if cols_env else '없음'}"
                 )
@@ -308,7 +312,10 @@ with tabs[1]:
             env_df = load_env_df(env_file)
 
             st.subheader("환경 요약 (평균 · 최소 · 최대 · CV)")
-            env_cols = [c for c in ["temperature", "humidity", "ph", "ec"] if c in env_df.columns]
+            env_cols = [
+                c for c in ["temperature", "humidity", "ph", "ec"]
+                if c in env_df.columns
+            ]
             if env_cols:
                 summary_rows = []
                 for c in env_cols:
@@ -332,11 +339,15 @@ with tabs[1]:
                         "ec": "EC(mS/cm)",
                     }
                     summary_df["측정 항목"] = (
-                        summary_df["측정 항목"].map(label_map).fillna(summary_df["측정 항목"])
+                        summary_df["측정 항목"].map(label_map).fillna(
+                            summary_df["측정 항목"]
+                        )
                     )
                     st.dataframe(summary_df, width="stretch")
                 else:
-                    st.info("환경 데이터의 숫자 값이 충분하지 않아 요약 표를 표시할 수 없습니다.")
+                    st.info(
+                        "환경 데이터의 숫자 값이 충분하지 않아 요약 표를 표시할 수 없습니다."
+                    )
             else:
                 st.info(
                     "환경 데이터에서 온도·습도·pH·EC 열을 찾을 수 없습니다. 열 이름이 다른 형식일 수 있습니다."
@@ -350,7 +361,10 @@ with tabs[1]:
                 env_df_daily["date"] = env_df_daily["time"].dt.date
                 daily = env_df_daily.groupby("date").mean(numeric_only=True).reset_index()
 
-                chart_cols = [c for c in ["temperature", "humidity", "ph", "ec"] if c in daily.columns]
+                chart_cols = [
+                    c for c in ["temperature", "humidity", "ph", "ec"]
+                    if c in daily.columns
+                ]
                 if chart_cols:
                     n_charts = len(chart_cols)
                     fig_env = make_subplots(
@@ -419,7 +433,6 @@ with tabs[1]:
                     "환경 데이터에 시간(date/time) 열이 없어 시계열 그래프를 표시할 수 없습니다."
                 )
 
-            # 이상치 탐지 (IQR 방식)
             st.divider()
             st.subheader("환경 데이터 이상치 탐지 (IQR 방법)")
             if env_cols:
@@ -446,7 +459,9 @@ with tabs[1]:
                 if outlier_rows:
                     outlier_df = pd.DataFrame(outlier_rows)
                     outlier_df["측정 항목"] = (
-                        outlier_df["측정 항목"].map(label_map).fillna(outlier_df["측정 항목"])
+                        outlier_df["측정 항목"].map(label_map).fillna(
+                            outlier_df["측정 항목"]
+                        )
                     )
                     st.dataframe(outlier_df, width="stretch")
                 else:
@@ -454,7 +469,6 @@ with tabs[1]:
             else:
                 st.info("이상치 탐지에 사용할 환경 측정 열이 없습니다.")
 
-            # 환경 데이터별 CV값 비교 막대그래프
             st.divider()
             st.subheader("환경 데이터별 CV(변동계수) 비교")
             if env_cols:
@@ -476,10 +490,16 @@ with tabs[1]:
                         go.Bar(
                             x=cv_names,
                             y=cv_vals,
-                            marker_color=["#e74c3c", "#3498db", "#27ae60", "#8e44ad"][:len(cv_vals)],
+                            marker_color=(
+                                ["#e74c3c", "#3498db", "#27ae60", "#8e44ad"][
+                                    :len(cv_vals)
+                                ]
+                            ),
                             text=[f"{v:.1f}%" for v in cv_vals],
                             textposition="outside",
-                            hovertemplate="측정 항목: %{{x}}<br>CV: %{{y:.2f}}%<extra></extra>",
+                            hovertemplate=(
+                                "측정 항목: %{{x}}<br>CV: %{{y:.2f}}%<extra></extra>"
+                            ),
                         )
                     )
                     fig_cv.update_layout(
@@ -613,7 +633,9 @@ with tabs[2]:
                             y=vals,
                             name=metric,
                             marker_color=colors_bar,
-                            hovertemplate=f"{metric}<br>개체: %{{x}}<br>값: %{{y:.2f}}<extra></extra>",
+                            hovertemplate=(
+                                f"{metric}<br>개체: %{{x}}<br>값: %{{y:.2f}}<extra></extra>"
+                            ),
                         ),
                         row=i,
                         col=1,
@@ -895,14 +917,13 @@ with tabs[3]:
                     x_labels_h = list(corr_matrix.columns)
                     y_labels_h = list(corr_matrix.index)
 
-                    fig_heat = go.Figure()
-
                     colorscale = [
                         [0.0, "#0d47a1"],
                         [0.5, "#ffffff"],
                         [1.0, "#b71c1c"],
                     ]
 
+                    fig_heat = go.Figure()
                     fig_heat.add_trace(
                         go.Heatmap(
                             z=z_values,
@@ -924,9 +945,6 @@ with tabs[3]:
                             ),
                             colorbar=dict(
                                 title="상관계수 r",
-                                titlefont=dict(
-                                    family="Malgun Gothic, Apple SD Gothic Neo, sans-serif"
-                                ),
                             ),
                         )
                     )
